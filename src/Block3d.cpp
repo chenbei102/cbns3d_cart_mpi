@@ -1,3 +1,7 @@
+#include <iostream>
+#include <fstream>
+#include <cmath>
+
 #include "Block3d.h"
 
 
@@ -224,5 +228,127 @@ void Block3d::gen_mesh(const size_type i_begin,
   for (size_type k = 0; k < KM+1; k++) {
     z[k] = (k_begin + k) * dz - tmp;
   }
+
+}
+
+void Block3d::initial_condition() {
+
+  // initialize the flow field 
+
+  for (size_type k = 0; k < KM; k++) {
+
+    value_type z_l = z[k] + 0.5 * dz;
+
+    for (size_type j = 0; j < JM; j++) {
+
+      value_type y_l = y[j] + 0.5 * dy;
+
+      for (size_type i = 0; i < IM; i++) {
+
+	value_type x_l = x[i] + 0.5 * dx;
+
+	size_type idx1 = get_idx(i, j, k);
+
+	u[idx1] = std::sin(x_l) * std::cos(y_l) * std::cos(z_l); 
+	v[idx1] = -std::cos(x_l) * std::sin(y_l) * std::cos(z_l); 
+	w[idx1] = 0.0;
+
+	p[idx1] = sim_pars->p_inf + (std::cos(2.0*x_l) + std::cos(2.0*y_l)) *
+	  (std::cos(2.0*z_l) + 2.0) / 16.0;
+
+	rho[idx1] = sim_pars->gM2 * p[idx1];
+
+	T[idx1] = 1.0;
+	mu[idx1] = 1.0;
+
+      }
+    }
+  }
+  
+}
+
+void Block3d::calc_conservative(value_type *Q) {
+
+  // Compute the conservative variables 
+
+  for (size_type k = 0; k < KM; k++) {
+    for (size_type j = 0; j < JM; j++) {
+      for (size_type i = 0; i < IM; i++) {
+
+	size_type idx1 = get_idx(i, j, k);
+	size_type idx2 = get_idx_Q(0, i, j, k);
+
+	value_type rr = rho[idx1];
+	value_type uu = u[idx1];
+	value_type vv = v[idx1];
+	value_type ww = w[idx1];
+	value_type pp = p[idx1];
+
+	Q[idx2  ] = rr;
+	Q[idx2+1] = rr * uu;
+	Q[idx2+2] = rr * vv;
+	Q[idx2+3] = rr * ww;
+	Q[idx2+4] = pp / sim_pars->gam1 + 0.5 * rr * (uu * uu + vv * vv + ww * ww);
+
+      }
+    }
+  }
+    
+}
+
+value_type* Block3d::get_Q() {
+
+  // Returns the private member 'Q'
+
+  return Q;
+  
+}
+
+value_type* Block3d::get_Q_p() {
+
+  // Returns the private member 'Q_p'
+
+  return Q_p;
+  
+}
+
+int Block3d::read_bin(const std::string fname) {
+
+  // reads flow field data from a binary file 
+
+  std::ifstream fh;
+
+  try {
+    fh.open(fname, std::ios::in | std::ios::binary);
+
+    value_type d_tmp;
+
+    fh.read((char *)&d_tmp, sizeof(value_type));
+    sim_pars->t_cur = d_tmp;
+
+    size_type i_tmp;
+    fh.read((char *)&i_tmp, sizeof(size_type));
+    if (i_tmp != IM_G) throw std::runtime_error("The dimensions do not match.\n");
+    fh.read((char *)&i_tmp, sizeof(size_type));
+    if (i_tmp != JM_G) throw std::runtime_error("The dimensions do not match.\n");
+    fh.read((char *)&i_tmp, sizeof(size_type));
+    if (i_tmp != KM_G) throw std::runtime_error("The dimensions do not match.\n");
+
+    size_type array_size = NEQ * IM_G * JM_G * KM_G;
+
+    fh.read((char *)Q, array_size * sizeof(value_type));
+
+  } catch (const std::ifstream::failure& e) {
+    std::cout << e.what() << std::endl;
+    return -1;
+  } catch (const std::runtime_error& e) {
+    std::cout << e.what() << std::endl;
+    fh.close();
+    return -1;
+  }
+  
+  fh.close();
+
+  return 0;
 
 }

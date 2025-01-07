@@ -123,6 +123,15 @@ public:
 		const size_type j_begin,
 		const size_type k_begin);
 
+  void initial_condition();
+
+  void calc_conservative(value_type* Q);
+
+  value_type* get_Q();
+  value_type* get_Q_p();
+
+  int read_bin(const std::string fname);
+
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

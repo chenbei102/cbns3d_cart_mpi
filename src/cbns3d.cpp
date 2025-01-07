@@ -123,7 +123,26 @@ int main(int argc, char** argv) {
 		 proc_info.coords[2] * (simParam.KM / dims[2]));
 
   // --------------------------------------------------------------------------
+  // initialize the simulation.
+  // It can either start with an initial flow field or resume from a checkpoint.
+ 
+  std::ostringstream oss;
+  oss << std::setw(3) << std::setfill('0') << proc_info.rank;
+  std::string output_fname = "output" + oss.str() + ".vtr";
+  simParam.checkpoint_fname += oss.str() + ".dat";
   
+  if (simParam.is_restart) {
+    block.initial_condition();
+    block.calc_conservative(block.get_Q());
+  } else {
+    if (0 != block.read_bin(simParam.checkpoint_fname)) {
+      std::cerr << "Unable to open the checkpoint file by process " << world_rank << "\n";
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+  }
+
+  // --------------------------------------------------------------------------
+
   MPI_Comm_free(&cart_comm);
 
   MPI_Finalize();

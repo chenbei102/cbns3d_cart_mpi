@@ -138,6 +138,11 @@ public:
   
   void init_Q_p();
 
+  int output_vtr(const std::string fname);
+  int output_vtm(const std::string fname,
+		 const std::string vtr_fname,
+		 const size_type num_blocks);
+  
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

@@ -389,3 +389,109 @@ void Block3d::init_Q_p() {
   for (size_type i = 0; i < array_size; i++) Q_p[i] = Q[i];
   
 }
+
+int Block3d::output_vtr(const std::string fname) {
+
+  // output the flow field data of each block to a .vtr file.
+
+  FILE *fh = std::fopen(fname.c_str(), "w");
+
+  if (fh) {
+    std::fprintf(fh, "<?xml version=\"1.0\"?>\n");
+    std::fprintf(fh, "<VTKFile type=\"RectilinearGrid\" version=\"1.0\" byte_order=\"LittleEndian\">\n");
+    std::fprintf(fh, "  <RectilinearGrid WholeExtent=\"0 %d 0 %d 0 %d\">\n",
+		 IM, JM, KM);
+    std::fprintf(fh, "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n",
+		 IM, JM, KM);
+
+    std::fprintf(fh, "    <CellData>\n");
+
+    auto write_cell_data = [this, &fh](const char* name,
+				       const value_type* arr) {
+      std::fprintf(fh, "      <DataArray type=\"Float64\" Name=\"%s\" format=\"ascii\">\n", name);
+      std::fprintf(fh, "        ");
+      size_type cnt = 0;
+      for(size_type k = 0; k < KM; k++) {
+	for(size_type j = 0; j < JM; j++) {
+	  for(size_type i = 0; i < IM; i++) {
+	    std::fprintf(fh, "%e ", arr[get_idx(i, j, k)]);
+	    if (4 == cnt++ % 5) std::fprintf(fh, "\n        ");
+	  }
+	}
+      }
+      if (0 != cnt % 5) std::fprintf(fh, "\n");
+      std::fprintf(fh, "      </DataArray>\n");
+    };
+
+    write_cell_data("rho", rho);
+    write_cell_data("u", u);
+    write_cell_data("v", v);
+    write_cell_data("w", w);
+    write_cell_data("p", p);
+    
+    std::fprintf(fh, "    </CellData>\n");
+
+    std::fprintf(fh, "    <Coordinates>\n");
+
+    auto write_coord = [&fh](const char* name, const size_type array_size,
+			     const value_type* arr) {
+      std::fprintf(fh, "      <DataArray type=\"Float64\" Name=\"%s\" format=\"ascii\">\n", name);
+      std::fprintf(fh, "        ");
+      for (size_type i = 0; i < array_size; i++) {
+	std::fprintf(fh, "%e ", arr[i]);
+	if (4 == i % 5) std::fprintf(fh, "\n        ");
+      }
+      if (0 != array_size % 5) std::fprintf(fh, "\n");
+      std::fprintf(fh, "      </DataArray>\n");
+    };
+
+    write_coord("x", IM+1, x);
+    write_coord("y", JM+1, y);
+    write_coord("z", KM+1, z);
+
+    std::fprintf(fh, "    </Coordinates>\n");
+
+    std::fprintf(fh, "    </Piece>\n");
+
+    std::fprintf(fh, "  </RectilinearGrid>\n");
+    std::fprintf(fh, "</VTKFile>\n");
+
+    std::fclose(fh);
+  } else {
+    return -1;
+  }
+
+  return 0;
+  
+}
+
+int Block3d::output_vtm(const std::string fname,
+			const std::string vtr_fname,
+			const size_type num_blocks) {
+
+  // generate a multiblock (.vtm) file that links to the data files (.vtr)
+  // of all blocks.
+
+  FILE *fh = std::fopen(fname.c_str(), "w");
+
+  if (fh) {
+    std::fprintf(fh, "<?xml version=\"1.0\"?>\n");
+    std::fprintf(fh, "<VTKFile type=\"vtkMultiBlockDataSet\" version=\"1.0\" byte_order=\"LittleEndian\">\n");
+    std::fprintf(fh, "  <vtkMultiBlockDataSet>\n");
+
+    for (size_type i = 0; i < num_blocks; i++) {
+      std::fprintf(fh, "    <DataSet index=\"%d\" file=\"%s%.3i.vtr\"/>\n",
+		   i, vtr_fname.c_str(), i);
+    }
+
+    std::fprintf(fh, "  </vtkMultiBlockDataSet>\n");
+    std::fprintf(fh, "</VTKFile>\n");
+
+    std::fclose(fh);
+  } else {
+    return -1;
+  }
+
+  return 0;
+  
+}

@@ -20,6 +20,7 @@
 #include "read_input.h"
 #include "process_info.h"
 #include "Block3d.h"
+#include "output_vtk_xml.h"
 
 
 int main(int argc, char** argv) {
@@ -129,7 +130,6 @@ int main(int argc, char** argv) {
  
   std::ostringstream oss;
   oss << std::setw(3) << std::setfill('0') << proc_info.rank;
-  std::string output_fname = "output" + oss.str() + ".vtr";
   simParam.checkpoint_fname += oss.str() + ".dat";
   
   if (simParam.is_restart) {
@@ -143,7 +143,6 @@ int main(int argc, char** argv) {
   }
 
   // --------------------------------------------------------------------------
-
   // apply boundary conditions
 
   boundary_condition(&block, block.get_Q());
@@ -151,6 +150,20 @@ int main(int argc, char** argv) {
   block.calc_primitive(block.get_Q());
 
   block.init_Q_p();
+  
+  // --------------------------------------------------------------------------
+
+  size_type cnt_out = 0;
+  oss.str("");
+  oss << std::setw(3) << std::setfill('0') << cnt_out;
+
+  if (0 != output_vtk_xml(&block, proc_info.rank, world_size,
+			  "output" + oss.str(), "output")) {
+      MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+  
+  value_type dt_out = simParam.t_end / simParam.num_output;
+  value_type t_out = ((int)(simParam.t_cur / dt_out) + 1) * dt_out;
   
   // --------------------------------------------------------------------------
 

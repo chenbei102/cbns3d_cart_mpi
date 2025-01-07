@@ -960,3 +960,28 @@ void Block3d::update_rk3(const value_type dt, const size_type stage) {
   }
 
 }
+
+int Block3d::output_bin(const std::string fname) {
+
+  // output the flow field data to a binary file specified by the given filename.
+
+  std::ofstream fh(fname, std::ios::out | std::ios::binary);
+
+  if (!fh) {
+    return -1;
+  }
+
+  fh.write((char*)&(sim_pars->t_cur), sizeof(value_type));
+
+  fh.write((char*)&IM_G, sizeof(size_type));
+  fh.write((char*)&JM_G, sizeof(size_type));
+  fh.write((char*)&KM_G, sizeof(size_type));
+
+  size_type array_size = NEQ * IM_G * JM_G * KM_G;
+
+  fh.write((char*)Q, array_size * sizeof(value_type));
+
+  fh.close();
+
+  return 0;
+}

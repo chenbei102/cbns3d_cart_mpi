@@ -160,6 +160,8 @@ public:
 
   void update_rk3(const value_type dt, const size_type stage);
   
+  int output_bin(const std::string fname);
+
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

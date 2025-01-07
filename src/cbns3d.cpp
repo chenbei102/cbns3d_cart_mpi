@@ -198,7 +198,75 @@ int main(int argc, char** argv) {
     }
 
     // ------------------------------------------------------------------------
+    // Perform the first stage of the Runge-Kutta method update
+
+    block.rec_riemann_x(block.get_Q());
+    block.rec_riemann_y(block.get_Q());
+    block.rec_riemann_z(block.get_Q());
+  
+    block.calc_viscous_flux_contribution();
+
+    block.update_rk3(dt, 1);
+
+    boundary_condition(&block, block.get_Q_p());
+    block.calc_primitive(block.get_Q_p());
+
+    // ------------------------------------------------------------------------
+    // Perform the second stage of the Runge-Kutta method update
+
+    block.rec_riemann_x(block.get_Q_p());
+    block.rec_riemann_y(block.get_Q_p());
+    block.rec_riemann_z(block.get_Q_p());
+  
+    block.calc_viscous_flux_contribution();
+
+    block.update_rk3(dt, 2);
+
+    boundary_condition(&block, block.get_Q_p());
+    block.calc_primitive(block.get_Q_p());
     
+    // ------------------------------------------------------------------------
+    // Perform the third stage of the Runge-Kutta method update
+
+    block.rec_riemann_x(block.get_Q_p());
+    block.rec_riemann_y(block.get_Q_p());
+    block.rec_riemann_z(block.get_Q_p());
+  
+    block.calc_viscous_flux_contribution();
+
+    block.update_rk3(dt, 3);
+
+    boundary_condition(&block, block.get_Q());
+    block.calc_primitive(block.get_Q());
+    
+    // ------------------------------------------------------------------------
+    // save the current simulation state as a checkpoint, enabling potential
+    // resumption.
+
+    if (0 == (n_t + 1) % simParam.checkpoint_freq) {
+      if (0 != block.output_bin(simParam.checkpoint_fname)) {
+	std::cerr << "Unable to save the checkpoint file by process "
+		  << world_rank << "\n";
+	MPI_Abort(MPI_COMM_WORLD, 1);
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // output the flow field at intervals determined by the 'num_output' value
+    // during the simulation.
+
+    if (t_out < simParam.t_cur) {
+      cnt_out++;
+      oss.str("");
+      oss << std::setw(3) << std::setfill('0') << cnt_out;
+
+      if (0 != output_vtk_xml(&block, proc_info.rank, world_size,
+			      "output" + oss.str(), "output")) {
+	MPI_Abort(MPI_COMM_WORLD, 1);
+      }
+      t_out += dt_out;
+    }
+
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -215,6 +283,18 @@ int main(int argc, char** argv) {
   if (0 == proc_info.rank) {
     std::cout << "  Wall time: " << wall_time << " seconds\n"
               << "  CPU time: " << cpu_time << " seconds\n";
+  }
+
+  // --------------------------------------------------------------------------
+  // outputs the latest flow field data
+
+  cnt_out++;
+  oss.str("");
+  oss << std::setw(3) << std::setfill('0') << cnt_out;
+
+  if (0 != output_vtk_xml(&block, proc_info.rank, world_size,
+			  "output" + oss.str(), "output")) {
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
   // --------------------------------------------------------------------------

@@ -132,6 +132,12 @@ public:
 
   int read_bin(const std::string fname);
 
+  friend void boundary_condition(Block3d* blk, value_type* Q);
+  
+  void calc_primitive(const value_type* Q);
+  
+  void init_Q_p();
+
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

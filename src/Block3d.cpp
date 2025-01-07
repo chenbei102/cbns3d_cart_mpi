@@ -133,7 +133,7 @@ void Block3d::allocate_mem() {
 
 void Block3d::free_mem() {
 
-  // Release memory allocated for dynamic arrays used in the simulation.
+  // release memory allocated for dynamic arrays used in the simulation.
 
   delete[] x;
   delete[] y;
@@ -206,7 +206,7 @@ void Block3d::gen_mesh(const size_type i_begin,
 		       const size_type j_begin,
 		       const size_type k_begin) {
 
-  // Generates the mesh data for the 3D block, starting at the given
+  // generate the mesh data for the 3D block, starting at the given
   // indices (i_begin, j_begin, k_begin).
 
   value_type tmp = 2.0 * constant::PI;
@@ -269,7 +269,7 @@ void Block3d::initial_condition() {
 
 void Block3d::calc_conservative(value_type *Q) {
 
-  // Compute the conservative variables 
+  // compute the conservative variables 
 
   for (size_type k = 0; k < KM; k++) {
     for (size_type j = 0; j < JM; j++) {
@@ -298,7 +298,7 @@ void Block3d::calc_conservative(value_type *Q) {
 
 value_type* Block3d::get_Q() {
 
-  // Returns the private member 'Q'
+  // returns the private member 'Q'
 
   return Q;
   
@@ -306,7 +306,7 @@ value_type* Block3d::get_Q() {
 
 value_type* Block3d::get_Q_p() {
 
-  // Returns the private member 'Q_p'
+  // returns the private member 'Q_p'
 
   return Q_p;
   
@@ -351,4 +351,41 @@ int Block3d::read_bin(const std::string fname) {
 
   return 0;
 
+}
+
+void Block3d::calc_primitive(const value_type* Q) {
+
+  // compute the primitive variables 
+
+  static const size_type array_size = IM_G * JM_G * KM_G;
+  
+  for(size_type idx1 = 0; idx1 < array_size; idx1++) {
+
+    size_type idx2 = NEQ * idx1;
+
+    value_type rr = Q[idx2  ];
+    value_type uu = Q[idx2+1] / rr;
+    value_type vv = Q[idx2+2] / rr;
+    value_type ww = Q[idx2+3] / rr;
+    value_type pp = sim_pars->gam1 * (Q[idx2+4] - 0.5 * rr * (uu * uu + vv * vv + ww * ww));
+
+    rho[idx1] = rr;	
+    u[idx1] = uu;
+    v[idx1] = vv;
+    w[idx1] = ww;
+    p[idx1] = pp;
+
+    T[idx1] = sim_pars->gM2 * pp / rr;
+
+  }
+
+}
+
+void Block3d::init_Q_p() {
+  
+  // initialize the Q_p array by copying data from the Q array
+
+  size_type array_size = NEQ * IM_G * JM_G * KM_G;
+  for (size_type i = 0; i < array_size; i++) Q_p[i] = Q[i];
+  
 }

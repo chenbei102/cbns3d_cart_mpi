@@ -15,6 +15,7 @@
 #include <mpi.h>
 #include <iostream>
 #include <filesystem>
+#include <sstream>
 
 #include "read_input.h"
 #include "process_info.h"
@@ -141,6 +142,16 @@ int main(int argc, char** argv) {
     }
   }
 
+  // --------------------------------------------------------------------------
+
+  // apply boundary conditions
+
+  boundary_condition(&block, block.get_Q());
+
+  block.calc_primitive(block.get_Q());
+
+  block.init_Q_p();
+  
   // --------------------------------------------------------------------------
 
   MPI_Comm_free(&cart_comm);

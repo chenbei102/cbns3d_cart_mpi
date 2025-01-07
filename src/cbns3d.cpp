@@ -18,6 +18,7 @@
 
 #include "read_input.h"
 #include "process_info.h"
+#include "Block3d.h"
 
 
 int main(int argc, char** argv) {
@@ -91,6 +92,37 @@ int main(int argc, char** argv) {
   MPI_Cart_shift(cart_comm, 0, 1, &proc_info.left, &proc_info.right); // shift along X-dimension
   MPI_Cart_shift(cart_comm, 1, 1, &proc_info.down, &proc_info.up);    // shift along Y-dimension
   MPI_Cart_shift(cart_comm, 2, 1, &proc_info.back, &proc_info.front); // shift along Z-dimension
+  
+  // --------------------------------------------------------------------------
+  // Partition the grid into multiple blocks based on the MPI topology
+
+  size_type IM, JM, KM;
+
+  if (dims[0] - 1 != proc_info.coords[0]) {
+    IM = simParam.IM / dims[0];
+  } else {
+    IM = simParam.IM - (dims[0] - 1) * (simParam.IM / dims[0]);
+  }
+
+  if (dims[1] - 1 != proc_info.coords[1]) {
+    JM = simParam.JM / dims[1];
+  } else {
+    JM = simParam.JM - (dims[1] - 1) * (simParam.JM / dims[1]);
+  }
+
+  if (dims[2] - 1 != proc_info.coords[2]) {
+    KM = simParam.KM / dims[2];
+  } else {
+    KM = simParam.KM - (dims[2] - 1) * (simParam.KM / dims[2]);
+  }
+
+  Block3d block(&proc_info, &simParam, IM, JM, KM);
+
+  block.gen_mesh(proc_info.coords[0] * (simParam.IM / dims[0]),
+		 proc_info.coords[1] * (simParam.JM / dims[1]),
+		 proc_info.coords[2] * (simParam.KM / dims[2]));
+
+  // --------------------------------------------------------------------------
   
   MPI_Comm_free(&cart_comm);
 

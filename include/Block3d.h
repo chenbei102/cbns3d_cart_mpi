@@ -147,6 +147,10 @@ public:
   
   value_type calc_dt();
 
+  void rec_riemann_x(const value_type* Q);
+  void rec_riemann_y(const value_type* Q);
+  void rec_riemann_z(const value_type* Q);
+  
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

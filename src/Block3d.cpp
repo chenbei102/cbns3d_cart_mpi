@@ -3,6 +3,9 @@
 #include <cmath>
 
 #include "Block3d.h"
+#include "eigenvectors_roe.h"
+#include "weno.h"
+#include "lf_flux.h"
 
 
 Block3d::Block3d(ProcessInfo* proc_info,
@@ -546,5 +549,200 @@ value_type Block3d::calc_dt() {
   }
 
   return sim_pars->CFL / s_max;
+
+}
+
+void Block3d::rec_riemann_x(const value_type* Q) {
+
+  // compute the numerical flux at all interfaces normal to the x-axis using
+  // an approximate Riemann solver.
+
+  value_type R_l[NEQ][NEQ];
+  value_type L_l[NEQ][NEQ];
+  
+  static const value_type gamma = sim_pars->gamma;
+  static const value_type gam1 = sim_pars->gam1;
+
+  for(size_type k = 0; k < KM; k++) {
+    for(size_type j = 0; j < JM; j++) {
+      for(index_type i = 0; i < IM+1; i++) {
+
+	size_type idx1 = get_idx_Ep(0, i, j, k);
+	size_type idx2 = get_idx(i-1, j, k);
+	size_type idx3 = get_idx(i  , j, k);
+
+	value_type rho_L = rho[idx2];
+	value_type u_L = u[idx2];
+	value_type v_L = v[idx2];
+	value_type w_L = w[idx2];
+	value_type p_L = p[idx2];
+
+	value_type rho_R = rho[idx3];
+	value_type u_R = u[idx3];
+	value_type v_R = v[idx3];
+	value_type w_R = w[idx3];
+	value_type p_R = p[idx3];
+
+	calc_eigenvectors(gamma,
+			  rho_L, u_L, v_L, w_L, p_L,
+			  rho_R, u_R, v_R, w_R, p_R,
+			  1.0, 0.0, 0.0, R_l, L_l);
+
+	rec_weno5(Q + get_idx_Q(0, i-3, j, k),
+		  Q + get_idx_Q(0, i-2, j, k),
+		  Q + get_idx_Q(0, i-1, j, k),
+		  Q + get_idx_Q(0, i  , j, k),
+		  Q + get_idx_Q(0, i+1, j, k),
+		  R_l, L_l,
+		  gam1,
+		  rho_L, u_L, v_L, w_L, p_L);
+
+	rec_weno5(Q + get_idx_Q(0, i+2, j, k),
+		  Q + get_idx_Q(0, i+1, j, k),
+		  Q + get_idx_Q(0, i  , j, k),
+		  Q + get_idx_Q(0, i-1, j, k),
+		  Q + get_idx_Q(0, i-2, j, k),
+		  R_l, L_l,
+		  gam1,
+		  rho_R, u_R, v_R, w_R, p_R);
+
+	lf_flux(gamma,
+		rho_R, u_R, v_R, w_R, p_R,
+		rho_L, u_L, v_L, w_L, p_L,
+		1.0, 0.0, 0.0, &Ep[idx1]);
+
+      }
+    }
+  }
+
+}
+
+void Block3d::rec_riemann_y(const value_type* Q) {
+
+  // compute the numerical flux at all interfaces normal to the y-axis using
+  // an approximate Riemann solver.
+
+  value_type R_l[NEQ][NEQ];
+  value_type L_l[NEQ][NEQ];
+  
+  static const value_type gamma = sim_pars->gamma;
+  static const value_type gam1 = sim_pars->gam1;
+
+  for(size_type k = 0; k < KM; k++) {
+    for(index_type j = 0; j < JM+1; j++) {
+      for(size_type i = 0; i < IM; i++) {
+
+	size_type idx1 = get_idx_Fp(0, i, j, k);
+	size_type idx2 = get_idx(i, j-1, k);
+	size_type idx3 = get_idx(i, j  , k);
+
+	value_type rho_L = rho[idx2];
+	value_type u_L = u[idx2];
+	value_type v_L = v[idx2];
+	value_type w_L = w[idx2];
+	value_type p_L = p[idx2];
+
+	value_type rho_R = rho[idx3];
+	value_type u_R = u[idx3];
+	value_type v_R = v[idx3];
+	value_type w_R = w[idx3];
+	value_type p_R = p[idx3];
+
+	calc_eigenvectors(gamma,
+			  rho_L, u_L, v_L, w_L, p_L,
+			  rho_R, u_R, v_R, w_R, p_R,
+			  0.0, 1.0, 0.0, R_l, L_l);
+
+	rec_weno5(Q + get_idx_Q(0, i, j-3, k),
+		  Q + get_idx_Q(0, i, j-2, k),
+		  Q + get_idx_Q(0, i, j-1, k),
+		  Q + get_idx_Q(0, i, j  , k),
+		  Q + get_idx_Q(0, i, j+1, k),
+		  R_l, L_l,
+		  gam1,
+		  rho_L, u_L, v_L, w_L, p_L);
+
+	rec_weno5(Q + get_idx_Q(0, i, j+2, k),
+		  Q + get_idx_Q(0, i, j+1, k),
+		  Q + get_idx_Q(0, i, j  , k),
+		  Q + get_idx_Q(0, i, j-1, k),
+		  Q + get_idx_Q(0, i, j-2, k),
+		  R_l, L_l,
+		  gam1,
+		  rho_R, u_R, v_R, w_R, p_R);
+
+	lf_flux(gamma,
+		rho_R, u_R, v_R, w_R, p_R,
+		rho_L, u_L, v_L, w_L, p_L,
+		0.0, 1.0, 0.0, &Fp[idx1]);
+
+      }
+    }
+  }
+
+}
+
+void Block3d::rec_riemann_z(const value_type* Q) {
+
+  // compute the numerical flux at all interfaces normal to the z-axis using
+  // an approximate Riemann solver.
+
+  value_type R_l[NEQ][NEQ];
+  value_type L_l[NEQ][NEQ];
+  
+  static const value_type gamma = sim_pars->gamma;
+  static const value_type gam1 = sim_pars->gam1;
+
+  for(index_type k = 0; k < KM+1; k++) {
+    for(size_type j = 0; j < JM; j++) {
+      for(size_type i = 0; i < IM; i++) {
+
+	size_type idx1 = get_idx_Gp(0, i, j, k);
+	size_type idx2 = get_idx(i, j, k-1);
+	size_type idx3 = get_idx(i, j, k  );
+
+	value_type rho_L = rho[idx2];
+	value_type u_L = u[idx2];
+	value_type v_L = v[idx2];
+	value_type w_L = w[idx2];
+	value_type p_L = p[idx2];
+
+	value_type rho_R = rho[idx3];
+	value_type u_R = u[idx3];
+	value_type v_R = v[idx3];
+	value_type w_R = w[idx3];
+	value_type p_R = p[idx3];
+
+	calc_eigenvectors(gamma,
+			  rho_L, u_L, v_L, w_L, p_L,
+			  rho_R, u_R, v_R, w_R, p_R,
+			  0.0, 0.0, 1.0, R_l, L_l);
+
+	rec_weno5(Q + get_idx_Q(0, i, j, k-3),
+		  Q + get_idx_Q(0, i, j, k-2),
+		  Q + get_idx_Q(0, i, j, k-1),
+		  Q + get_idx_Q(0, i, j, k  ),
+		  Q + get_idx_Q(0, i, j, k+1),
+		  R_l, L_l,
+		  gam1,
+		  rho_L, u_L, v_L, w_L, p_L);
+
+	rec_weno5(Q + get_idx_Q(0, i, j, k+2),
+		  Q + get_idx_Q(0, i, j, k+1),
+		  Q + get_idx_Q(0, i, j, k  ),
+		  Q + get_idx_Q(0, i, j, k-1),
+		  Q + get_idx_Q(0, i, j, k-2),
+		  R_l, L_l,
+		  gam1,
+		  rho_R, u_R, v_R, w_R, p_R);
+
+	lf_flux(gamma,
+		rho_R, u_R, v_R, w_R, p_R,
+		rho_L, u_L, v_L, w_L, p_L,
+		0.0, 0.0, 1.0, &Gp[idx1]);
+
+      }
+    }
+  }
 
 }

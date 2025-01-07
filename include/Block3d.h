@@ -158,6 +158,8 @@ public:
   void calc_viscous_flux();
   void calc_viscous_flux_contribution();
 
+  void update_rk3(const value_type dt, const size_type stage);
+  
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

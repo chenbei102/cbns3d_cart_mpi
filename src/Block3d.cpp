@@ -916,3 +916,47 @@ void Block3d::calc_viscous_flux_contribution() {
   }
 
 }
+
+void Block3d::update_rk3(const value_type dt, const size_type stage) {
+
+  // 3rd-order Total Variation Diminishing (TVD) Runge-Kutta method for time
+  // integration
+
+  for(size_type k = 0; k < KM; k++) {
+    for(size_type j = 0; j < JM; j++) {
+      for(size_type i = 0; i < IM; i++) {
+
+	for(size_type i_eq = 0; i_eq < NEQ; i_eq++) {
+	  size_type idx1 = get_idx_Ep(i_eq, i+1, j, k);
+	  size_type idx2 = get_idx_Ep(i_eq, i  , j, k);
+
+	  value_type df = (Ep[idx1] - Ep[idx2]) / dx; 
+
+	  idx1 = get_idx_Fp(i_eq, i, j+1, k);
+	  idx2 = get_idx_Fp(i_eq, i, j  , k);
+
+	  df += (Fp[idx1] - Fp[idx2]) / dy;
+
+	  idx1 = get_idx_Gp(i_eq, i, j, k+1);
+	  idx2 = get_idx_Gp(i_eq, i, j, k  );
+
+	  df += (Gp[idx1] - Gp[idx2]) / dz; 
+
+	  if (i_eq > 0) df -= diff_flux_v[get_idx_dfv(i_eq-1, i, j, k)];
+
+	  idx1 = get_idx_Q(i_eq, i, j, k);
+	    
+	  if (1 == stage) {
+	    Q_p[idx1] = Q[idx1] - dt * df;
+	  } else if (2 == stage) {
+	    Q_p[idx1] = 0.75 * Q[idx1] + 0.25 * (Q_p[idx1] - dt * df);
+	  } else if (3 == stage) {
+	    Q[idx1] = (Q[idx1] + 2.0 * (Q_p[idx1] - dt * df)) / 3.0;
+	  }
+
+	}
+      }
+    }
+  }
+
+}

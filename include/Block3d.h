@@ -151,6 +151,13 @@ public:
   void rec_riemann_y(const value_type* Q);
   void rec_riemann_z(const value_type* Q);
   
+  friend void calc_gradient(Block3d* blk, const value_type *f,
+			    value_type *f_x, value_type *f_y, value_type *f_z);
+
+  void calc_viscous_terms();
+  void calc_viscous_flux();
+  void calc_viscous_flux_contribution();
+
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

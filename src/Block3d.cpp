@@ -746,3 +746,173 @@ void Block3d::rec_riemann_z(const value_type* Q) {
   }
 
 }
+
+void Block3d::calc_viscous_terms() {
+
+  // calculate viscosity-related terms, including viscous stress and heat fluxes.
+
+  calc_gradient(this, u, u_x, u_y, u_z);
+  calc_gradient(this, v, v_x, v_y, v_z);
+  calc_gradient(this, w, w_x, w_y, w_z);
+  calc_gradient(this, T, T_x, T_y, T_z);
+
+  static const index_type N_GV = NGV;
+  static const index_type IMAX = IM + NGV;
+  static const index_type JMAX = JM + NGV;
+  static const index_type KMAX = KM + NGV;
+
+  static const value_type C_T_inf = sim_pars->C_T_inf;
+  static const value_type Re_inv = sim_pars->Re_inv;
+  static const value_type kappa =
+    -sim_pars->Pr_inv * sim_pars->gam1_inv / sim_pars->Mach2;
+
+  for(index_type k = -N_GV; k < KMAX; k++) {
+    for(index_type j = -N_GV; j < JMAX; j++) {
+      for(index_type i = -N_GV; i < IMAX; i++) {
+
+	size_type idx1 = get_idx(i, j, k);
+	size_type idx2 = get_idx_ux(i, j, k);
+
+	value_type T_l = T[idx1];
+	value_type mu_l = (1.0 + C_T_inf) / (T_l + C_T_inf) * std::sqrt(T_l * T_l * T_l);
+
+	mu[idx1] = mu_l;
+
+	value_type u_x_l = u_x[idx2];
+	value_type u_y_l = u_y[idx2];
+	value_type u_z_l = u_z[idx2];
+	value_type v_x_l = v_x[idx2];
+	value_type v_y_l = v_y[idx2];
+	value_type v_z_l = v_z[idx2];
+	value_type w_x_l = w_x[idx2];
+	value_type w_y_l = w_y[idx2];
+	value_type w_z_l = w_z[idx2];
+
+	mu_l *= Re_inv;
+
+	tau_xx[idx2] = (2.0/3.0)*mu_l*(2.0*u_x_l - v_y_l - w_z_l);
+	tau_yy[idx2] = (2.0/3.0)*mu_l*(2.0*v_y_l - u_x_l - w_z_l);
+	tau_zz[idx2] = (2.0/3.0)*mu_l*(2.0*w_z_l - u_x_l - v_y_l);
+	tau_xy[idx2] = mu_l*(u_y_l + v_x_l);
+	tau_xz[idx2] = mu_l*(u_z_l + w_x_l);
+	tau_yz[idx2] = mu_l*(v_z_l + w_y_l);
+
+	mu_l *= kappa;
+
+	q_x[idx2] = mu_l * T_x[idx2];
+	q_y[idx2] = mu_l * T_y[idx2];
+	q_z[idx2] = mu_l * T_z[idx2];
+
+      }
+    }
+  }
+
+}
+
+void Block3d::calc_viscous_flux() {
+  
+  // compute viscous fluxes
+
+  static const index_type N_GV = NGV;
+  static const index_type IMAX = IM + NGV;
+  static const index_type JMAX = JM + NGV;
+  static const index_type KMAX = KM + NGV;
+
+  for(index_type k = -N_GV; k < KMAX; k++) {
+    for(index_type j = -N_GV; j < JMAX; j++) {
+      for(index_type i = -N_GV; i < IMAX; i++) {
+
+	size_type idx1 = get_idx(i, j, k);
+	size_type idx2 = get_idx_ux(i, j, k);
+	size_type idx3 = get_idx_Ev(0, i, j, k);
+
+	value_type uu = u[idx1];
+	value_type vv = v[idx1];
+	value_type ww = w[idx1];
+
+	value_type tau_xx_l = tau_xx[idx2];
+	value_type tau_yy_l = tau_yy[idx2];
+	value_type tau_zz_l = tau_zz[idx2];
+	value_type tau_xy_l = tau_xy[idx2];
+	value_type tau_xz_l = tau_xz[idx2];
+	value_type tau_yz_l = tau_yz[idx2];
+
+	// ---------------------------------------------------------------------
+	// Viscous flux in x-direction 
+
+	Ev[idx3  ] = tau_xx_l;
+	Ev[idx3+1] = tau_xy_l;
+	Ev[idx3+2] = tau_xz_l;
+	Ev[idx3+3] = uu * tau_xx_l + vv * tau_xy_l + ww * tau_xz_l - q_x[idx2]; 
+
+	// ---------------------------------------------------------------------
+	// Viscous flux in y-direction
+
+	Fv[idx3  ] = tau_xy_l;
+	Fv[idx3+1] = tau_yy_l;
+	Fv[idx3+2] = tau_yz_l;
+	Fv[idx3+3] = uu * tau_xy_l + vv * tau_yy_l + ww * tau_yz_l - q_y[idx2];
+	
+	// ---------------------------------------------------------------------
+	// Viscous flux in z-direction
+
+	Gv[idx3  ] = tau_xz_l;
+	Gv[idx3+1] = tau_yz_l;
+	Gv[idx3+2] = tau_zz_l;
+	Gv[idx3+3] = uu * tau_xz_l + vv * tau_yz_l + ww * tau_zz_l - q_z[idx2];
+
+      }
+    }
+  }
+
+}
+
+void Block3d::calc_viscous_flux_contribution() {
+
+  // calculate the total contribution of viscous flux derivatives in the x-, y-,
+  // and z-directions.
+
+  calc_viscous_terms();
+
+  calc_viscous_flux();
+
+  static const value_type coeff_c[2] = {1.0/12.0, -2.0/3.0};
+
+  for (index_type k = 0; k < KM; k++) {
+    for (index_type j = 0; j < JM; j++) {
+      for (index_type i = 0; i < IM; i++) {
+
+	value_type df = 0.0;    
+
+	for(size_type i_eq = 0; i_eq < NEQ-1; i_eq++) {
+
+	  size_type idx1 = get_idx_Ev(i_eq, i-2, j, k);
+	  size_type idx2 = get_idx_Ev(i_eq, i-1, j, k);
+	  size_type idx3 = get_idx_Ev(i_eq, i+1, j, k);
+	  size_type idx4 = get_idx_Ev(i_eq, i+2, j, k);
+
+	  df = (coeff_c[0]*Ev[idx1] + coeff_c[1]*Ev[idx2] - coeff_c[1]*Ev[idx3] - coeff_c[0]*Ev[idx4]) / dx;
+
+	  idx1 = get_idx_Ev(i_eq, i, j-2, k);
+	  idx2 = get_idx_Ev(i_eq, i, j-1, k);
+	  idx3 = get_idx_Ev(i_eq, i, j+1, k);
+	  idx4 = get_idx_Ev(i_eq, i, j+2, k);
+
+	  df += (coeff_c[0]*Fv[idx1] + coeff_c[1]*Fv[idx2] - coeff_c[1]*Fv[idx3] - coeff_c[0]*Fv[idx4]) / dy;
+
+	  idx1 = get_idx_Ev(i_eq, i, j, k-2);
+	  idx2 = get_idx_Ev(i_eq, i, j, k-1);
+	  idx3 = get_idx_Ev(i_eq, i, j, k+1);
+	  idx4 = get_idx_Ev(i_eq, i, j, k+2);
+
+	  df += (coeff_c[0]*Gv[idx1] + coeff_c[1]*Gv[idx2] - coeff_c[1]*Gv[idx3] - coeff_c[0]*Gv[idx4]) / dz;
+
+	  diff_flux_v[get_idx_dfv(i_eq, i, j, k)] = df;
+
+	}
+
+      }
+    }
+  }
+
+}

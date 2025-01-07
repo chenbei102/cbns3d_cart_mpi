@@ -16,6 +16,7 @@
 #include <iostream>
 #include <filesystem>
 #include <sstream>
+#include <chrono>
 
 #include "read_input.h"
 #include "process_info.h"
@@ -152,6 +153,7 @@ int main(int argc, char** argv) {
   block.init_Q_p();
   
   // --------------------------------------------------------------------------
+  // output the initial flow field
 
   size_type cnt_out = 0;
   oss.str("");
@@ -165,6 +167,56 @@ int main(int argc, char** argv) {
   value_type dt_out = simParam.t_end / simParam.num_output;
   value_type t_out = ((int)(simParam.t_cur / dt_out) + 1) * dt_out;
   
+  // --------------------------------------------------------------------------
+  // perform simulation iterations and track execution time for
+  // performance analysis
+  
+  auto start = std::chrono::high_resolution_clock::now();
+
+  for (size_type n_t = 0; n_t < simParam.nstep_max; n_t++) {
+
+    if (block.is_finished()) {
+      if (0 == proc_info.rank) std::cout << "Finished!\n";
+      break;
+    }
+
+    // ------------------------------------------------------------------------
+    // compute the time step
+
+    value_type dt_local = block.calc_dt();
+    value_type dt = 0.0;
+    
+    MPI_Allreduce(&dt_local, &dt, 1, MPI_DOUBLE, MPI_MIN, cart_comm);
+    
+    if (simParam.t_end - simParam.t_cur < dt) {
+      dt = simParam.t_end - simParam.t_cur;
+    }
+    simParam.t_cur += dt;
+
+    if (0 == proc_info.rank) {
+      std::cout << n_t << ", " << dt << ", " << simParam.t_cur << std::endl;
+    }
+
+    // ------------------------------------------------------------------------
+    
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto elapsed_seconds =
+    std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+
+  double wall_time_local = elapsed_seconds.count();
+  double wall_time = 0.0;
+  double cpu_time = 0.0;
+  
+  MPI_Reduce(&wall_time_local, &wall_time, 1, MPI_DOUBLE, MPI_MAX, 0, cart_comm);
+  MPI_Reduce(&wall_time_local, &cpu_time, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
+
+  if (0 == proc_info.rank) {
+    std::cout << "  Wall time: " << wall_time << " seconds\n"
+              << "  CPU time: " << cpu_time << " seconds\n";
+  }
+
   // --------------------------------------------------------------------------
 
   MPI_Comm_free(&cart_comm);

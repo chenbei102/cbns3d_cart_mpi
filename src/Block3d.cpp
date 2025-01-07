@@ -495,3 +495,56 @@ int Block3d::output_vtm(const std::string fname,
   return 0;
   
 }
+
+bool Block3d::is_finished() {
+
+  // check if the simulation has reached the predefined final time.
+
+  bool flag = false;
+  if (sim_pars->t_cur + 1.0e-5 > sim_pars->t_end) {
+    flag = true;
+  }
+
+  return flag;
+
+}
+
+value_type Block3d::calc_dt() {
+
+  // calculate the time step based on the Courant-Friedrichs-Lewy (CFL) condition
+
+  value_type s_max = 0.0;
+
+  for(size_type k = 0; k < KM; k++) {
+    for(size_type j = 0; j < JM; j++) {
+      for(size_type i = 0; i < IM; i++) {
+
+	size_type idx1 = get_idx(i, j, k);
+
+	value_type rr = rho[idx1];
+	value_type uu = u[idx1];
+	value_type vv = v[idx1];
+	value_type ww = w[idx1];
+	value_type pp = p[idx1];
+
+	value_type c = std::sqrt(sim_pars->gamma * pp / rr);
+
+	value_type factor_v = 2.0 * mu[idx1] * sim_pars->C_dt_v * std::sqrt(uu*uu + vv*vv + ww*ww) / c / rr;
+
+	value_type t1 = std::abs(uu) + c / dx;
+	t1 += factor_v / dx / dx;
+
+	value_type t2 = std::abs(vv) + c / dy;
+	t2 += factor_v / dy / dy;
+
+	value_type t3 = std::abs(ww) + c / dz;
+	t3 += factor_v / dz / dz;
+
+	s_max = ((s_max < t1 + t2 + t3) ? (t1 + t2 + t3) : s_max); 
+      }
+    }
+  }
+
+  return sim_pars->CFL / s_max;
+
+}

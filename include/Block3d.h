@@ -143,6 +143,10 @@ public:
 		 const std::string vtr_fname,
 		 const size_type num_blocks);
   
+  bool is_finished();
+  
+  value_type calc_dt();
+
   // --------------------------------------------------------------------------
   // Utility functions for converting multi-dimensional indices to
   // one-dimensional indices.

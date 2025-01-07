@@ -12,8 +12,52 @@
  * @author Bei Chen
  */
 
+#include <mpi.h>
+#include <iostream>
+
+#include "read_input.h"
+
+
 int main(int argc, char** argv) {
 
+  MPI_Init(&argc, &argv);
+
+  int world_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+  // ensure the required command-line arguments is provided
+  if (4 > argc) {
+    if (0 == world_rank) {
+      std::cout << "Usage: program <dimX> <dimY> <dimZ>\n";
+    }
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+  int dims[3] = {std::stoi(argv[1]), std::stoi(argv[2]), std::stoi(argv[3])};
+
+  // validate the number of processes
+  if (dims[0] * dims[1] * dims[2] != world_size) {
+    if (0 == world_rank) {
+      std::cerr << "Error: Number of processes must equal dimX * dimY * dimZ.\n";
+    }
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+  SimulationParams simParam;
+
+  // load simulation parameters from the input file
+  if (0 == world_rank) {
+    if (0 != read_input(simParam)) MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+  // broadcast simulation parameters to all processes
+  MPI_Bcast(&simParam, sizeof(SimulationParams), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+  MPI_Finalize();
+  
   return 0;
 
 }
